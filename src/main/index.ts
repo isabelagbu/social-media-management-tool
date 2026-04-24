@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, ipcMain, nativeTheme, shell } from 'electron'
+import { app, BrowserWindow, clipboard, ipcMain, nativeTheme, Notification, shell } from 'electron'
 
 app.name = 'Ready Set Post!'
 import { join } from 'path'
@@ -129,6 +129,11 @@ app.whenReady().then(() => {
   ipcMain.handle('theme:set', (_, source: 'light' | 'dark' | 'system') => {
     if (source === 'light' || source === 'dark' || source === 'system') {
       nativeTheme.themeSource = source
+    }
+  })
+  ipcMain.handle('notify', (_, title: string, body: string) => {
+    if (Notification.isSupported()) {
+      new Notification({ title, body }).show()
     }
   })
 

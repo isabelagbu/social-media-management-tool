@@ -1,5 +1,8 @@
 import { useEffect, useLayoutEffect, useState } from 'react'
 import { playPop } from './utils/sound'
+import { useReminders } from './hooks/useReminders'
+import OnboardingModal, { hasSeenOnboarding } from './components/OnboardingModal'
+import BrandLogo from './components/BrandLogo'
 import type { NavId } from './nav'
 import { parsePost, type Post } from './posts/types'
 import {
@@ -60,33 +63,16 @@ const NAV: { id: NavId; label: string; icon: React.ReactElement }[] = [
   }
 ]
 
-const SIDEBAR_STORAGE_KEY = 'smm-sidebar-collapsed'
-
 export default function App(): React.ReactElement {
   const [active, setActive] = useState<NavId>('dashboard')
   const [posts, setPosts] = useState<Post[]>([])
   const [loaded, setLoaded] = useState(false)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    try {
-      return localStorage.getItem(SIDEBAR_STORAGE_KEY) === '1'
-    } catch {
-      return false
-    }
-  })
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [theme, setTheme] = useState<AppTheme>(() => readStoredTheme())
   const [accent, setAccent] = useState<AccentPresetId>(() => readStoredAccent())
+  const [showOnboarding, setShowOnboarding] = useState(() => !hasSeenOnboarding())
 
-  function toggleSidebar(): void {
-    setSidebarCollapsed((c) => {
-      const next = !c
-      try {
-        localStorage.setItem(SIDEBAR_STORAGE_KEY, next ? '1' : '0')
-      } catch {
-        /* ignore */
-      }
-      return next
-    })
-  }
+  useReminders(posts)
 
   useEffect(() => {
     let cancelled = false
@@ -121,29 +107,16 @@ export default function App(): React.ReactElement {
   return (
     <div className="shell">
       <aside
-        className={`sidebar${sidebarCollapsed ? ' collapsed' : ''}`}
+        className={`sidebar${sidebarOpen ? '' : ' collapsed'}`}
         aria-label="Main navigation"
+        onMouseEnter={() => setSidebarOpen(true)}
+        onMouseLeave={() => setSidebarOpen(false)}
       >
         <div className="sidebar-top">
           <div className="sidebar-brand">
-            <span className="brand-mark" aria-hidden />
-            <span className="brand-name">Ready Set Post!</span>
+            <BrandLogo size={28} />
+                  <span className="brand-name">Ready Set Post!</span>
           </div>
-          <button
-            type="button"
-            className="sidebar-toggle"
-            onClick={toggleSidebar}
-            aria-expanded={!sidebarCollapsed}
-            aria-controls="app-sidebar-nav"
-            title={sidebarCollapsed ? 'Expand menu' : 'Minimize menu'}
-            aria-label={sidebarCollapsed ? 'Expand menu' : 'Minimize menu'}
-          >
-            <span className="hamburger-icon" aria-hidden>
-              <span className="hamburger-line" />
-              <span className="hamburger-line" />
-              <span className="hamburger-line" />
-            </span>
-          </button>
         </div>
         <nav id="app-sidebar-nav" className="sidebar-nav">
           {NAV.map((item) => (
@@ -152,7 +125,7 @@ export default function App(): React.ReactElement {
               type="button"
               className={`nav-item${active === item.id ? ' active' : ''}`}
               onClick={() => { playPop(); setActive(item.id) }}
-              aria-label={sidebarCollapsed ? item.label : undefined}
+              aria-label={item.label}
               title={item.label}
             >
               <span className="nav-icon">{item.icon}</span>
@@ -179,6 +152,10 @@ export default function App(): React.ReactElement {
           />
         )}
       </main>
+
+      {showOnboarding && (
+        <OnboardingModal onDone={() => setShowOnboarding(false)} />
+      )}
     </div>
   )
 }

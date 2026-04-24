@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import PostNotesFullView from '../components/PostNotesFullView'
 import PostCreateModal from '../components/PostCreateModal'
 import PostPills from '../components/PostPills'
+import Tip from '../components/Tip'
 import { pad2 } from '../posts/datetime'
 import {
   livePostUrl,
@@ -142,6 +143,29 @@ export default function CalendarView({
     setShowCreate(false)
   }
 
+  // ── Drag-to-reschedule ────────────────────────────────────
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null)
+  const draggingPostId = useRef<string | null>(null)
+
+  function handleDrop(targetDateKey: string): void {
+    const id = draggingPostId.current
+    if (!id) return
+    setDragOverKey(null)
+    draggingPostId.current = null
+    setPosts((prev) =>
+      prev.map((p) => {
+        if (p.id !== id) return p
+        // Keep existing time, just move the date
+        const existing = p.scheduledAt ? new Date(p.scheduledAt) : new Date()
+        const [y, m, d] = targetDateKey.split('-').map(Number)
+        const next = new Date(y, m - 1, d, existing.getHours(), existing.getMinutes())
+        return { ...p, scheduledAt: next.toISOString() }
+      })
+    )
+    // Switch day panel to the target date
+    setSelectedKey(targetDateKey)
+  }
+
   // Build initial ISO date from the selected calendar day (noon)
   const createInitialDate = useMemo(() => {
     if (!selectedKey) return undefined
@@ -155,6 +179,7 @@ export default function CalendarView({
       <header className="page-header">
         <h1>Calendar</h1>
         <p className="sub">Select a day to view or create scheduled posts.</p>
+        <Tip>Click a date to open its post panel · Drag a post card onto a new date to reschedule it · Hover a date with posts to preview their titles</Tip>
       </header>
 
       <div className="calendar-layout">
@@ -180,7 +205,8 @@ export default function CalendarView({
           </div>
           <div className="calendar-grid" role="grid" aria-label="Month">
             {grid.map((cell) => {
-              const count = byDay.get(cell.dateKey)?.length ?? 0
+              const dayPosts = byDay.get(cell.dateKey) ?? []
+              const count = dayPosts.length
               const selected = selectedKey === cell.dateKey
               const today = cell.dateKey === todayKey
               return (
@@ -188,14 +214,26 @@ export default function CalendarView({
                   key={`${cell.dateKey}-${cell.inMonth}-${cell.dayNum}`}
                   type="button"
                   role="gridcell"
-                  className={`calendar-day${cell.inMonth ? '' : ' other-month'}${selected ? ' selected' : ''}${today ? ' today' : ''}`}
+                  className={`calendar-day${cell.inMonth ? '' : ' other-month'}${selected ? ' selected' : ''}${today ? ' today' : ''}${dragOverKey === cell.dateKey ? ' drag-over' : ''}`}
                   onClick={() => setSelectedKey(cell.dateKey)}
+                  onDragOver={(e) => { e.preventDefault(); setDragOverKey(cell.dateKey) }}
+                  onDragLeave={() => setDragOverKey(null)}
+                  onDrop={() => handleDrop(cell.dateKey)}
                 >
                   <span className="calendar-day-num">{cell.dayNum}</span>
                   {count > 0 && (
-                    <span className="calendar-day-badge" aria-label={`${count} scheduled`}>
-                      {count}
-                    </span>
+                    <>
+                      <span className="calendar-day-badge" aria-label={`${count} scheduled`}>
+                        {count}
+                      </span>
+                      <div className="calendar-day-tooltip" role="tooltip">
+                        {dayPosts.map((p) => (
+                          <span key={p.id} className="calendar-day-tooltip-item">
+                            {p.title || 'Untitled'}
+                          </span>
+                        ))}
+                      </div>
+                    </>
                   )}
                 </button>
               )
@@ -210,6 +248,7 @@ export default function CalendarView({
               posts={byDay.get(selectedKey) ?? []}
               onOpenNotes={(postId) => setNotesModalPostId(postId)}
               onCreatePost={() => setShowCreate(true)}
+              onDragStart={(postId) => { draggingPostId.current = postId }}
             />
           ) : (
             <p className="muted small">Select a day on the calendar.</p>
@@ -243,12 +282,14 @@ function DayPanelPosts({
   dateKey,
   posts,
   onOpenNotes,
-  onCreatePost
+  onCreatePost,
+  onDragStart
 }: {
   dateKey: string
   posts: Post[]
   onOpenNotes: (postId: string) => void
   onCreatePost: () => void
+  onDragStart: (postId: string) => void
 }): React.ReactElement {
   const label = useMemo(() => {
     const [y, m, d] = dateKey.split('-').map(Number)
@@ -279,7 +320,15 @@ function DayPanelPosts({
         ) : (
           <ul className="day-post-list">
             {posts.map((p) => (
-              <li key={p.id} className="card post day-calendar-post">
+              <li
+                key={p.id}
+                className="card post day-calendar-post"
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.effectAllowed = 'move'
+                  onDragStart(p.id)
+                }}
+              >
                 <div className="post-top">
                   <div className="post-top-meta">
                     <span className={`badge status-${p.status}`}>{p.status}</span>

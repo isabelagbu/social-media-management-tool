@@ -4,6 +4,20 @@ import { useAccounts } from '../accounts/context'
 import { PLATFORM_META, PLATFORMS, type Platform } from '../accounts/types'
 import { ACCENT_PRESETS, type AccentPresetId, type AppTheme } from '../theme'
 import { isSoundEnabled, setSoundEnabled } from '../utils/sound'
+import { isHintsEnabled, setHintsEnabled } from '../utils/hints'
+import { isRemindersEnabled, setRemindersEnabled } from '../utils/reminders'
+
+const BANNER_ENABLED_KEY = 'smm-dash-banner-enabled'
+export function isBannerEnabled(): boolean {
+  try {
+    const v = localStorage.getItem(BANNER_ENABLED_KEY)
+    return v === null ? true : v === 'true'
+  } catch { return true }
+}
+function setBannerEnabled(on: boolean): void {
+  try { localStorage.setItem(BANNER_ENABLED_KEY, String(on)) } catch { /* ignore */ }
+  window.dispatchEvent(new CustomEvent('smm-banner-change', { detail: on }))
+}
 
 const APPEARANCE: { id: AppTheme; label: string }[] = [
   { id: 'light', label: 'Light' },
@@ -25,11 +39,32 @@ export default function SettingsView({
   const { accounts, addAccount, updateAccount, removeAccount } = useAccounts()
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null)
   const [soundOn, setSoundOn] = useState(() => isSoundEnabled())
+  const [hintsOn, setHintsOn] = useState(() => isHintsEnabled())
+  const [remindersOn, setRemindersOn] = useState(() => isRemindersEnabled())
+  const [bannerOn, setBannerOn] = useState(() => isBannerEnabled())
 
   function toggleSound(): void {
     const next = !soundOn
     setSoundOn(next)
     setSoundEnabled(next)
+  }
+
+  function toggleHints(): void {
+    const next = !hintsOn
+    setHintsOn(next)
+    setHintsEnabled(next)
+  }
+
+  function toggleReminders(): void {
+    const next = !remindersOn
+    setRemindersOn(next)
+    setRemindersEnabled(next)
+  }
+
+  function toggleBanner(): void {
+    const next = !bannerOn
+    setBannerOn(next)
+    setBannerEnabled(next)
   }
 
   const [addingFor, setAddingFor] = useState<Platform | null>(null)
@@ -146,6 +181,86 @@ export default function SettingsView({
             className={`settings-toggle${soundOn ? ' settings-toggle--on' : ''}`}
             onClick={toggleSound}
             aria-label="Toggle click sounds"
+          >
+            <span className="settings-toggle-thumb" />
+          </button>
+        </label>
+      </section>
+
+      <section className="settings-section card settings-section--compact" aria-labelledby="settings-hints-heading">
+        <h2 id="settings-hints-heading" className="settings-section-title">
+          Hints
+        </h2>
+        <p className="muted small settings-section-lead">
+          Show usage tip cards throughout the app.
+        </p>
+        <label className="settings-toggle-row">
+          <span className="settings-toggle-label">Hint cards</span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={hintsOn}
+            className={`settings-toggle${hintsOn ? ' settings-toggle--on' : ''}`}
+            onClick={toggleHints}
+            aria-label="Toggle hint cards"
+          >
+            <span className="settings-toggle-thumb" />
+          </button>
+        </label>
+      </section>
+
+      <section className="settings-section card settings-section--compact" aria-labelledby="settings-reminders-heading">
+        <h2 id="settings-reminders-heading" className="settings-section-title">
+          Reminders
+        </h2>
+        <p className="muted small settings-section-lead">
+          Get a system notification when a scheduled post is due.
+        </p>
+        <label className="settings-toggle-row">
+          <span className="settings-toggle-label">Post reminders</span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={remindersOn}
+            className={`settings-toggle${remindersOn ? ' settings-toggle--on' : ''}`}
+            onClick={toggleReminders}
+            aria-label="Toggle post reminders"
+          >
+            <span className="settings-toggle-thumb" />
+          </button>
+        </label>
+        <div className="settings-reminder-test">
+          <button
+            type="button"
+            className="ghost small"
+            disabled={!remindersOn}
+            onClick={() => {
+              const api = (window as Window & { api?: { notify?: (t: string, b: string) => void } }).api
+              api?.notify?.('⏰ Test — Ready Set Post!', 'Notifications are working.')
+            }}
+          >
+            Send test notification
+          </button>
+          {!remindersOn && <span className="muted small">Enable reminders to test</span>}
+        </div>
+      </section>
+
+      <section className="settings-section card settings-section--compact" aria-labelledby="settings-dashboard-heading">
+        <h2 id="settings-dashboard-heading" className="settings-section-title">
+          Dashboard
+        </h2>
+        <p className="muted small settings-section-lead">
+          Customise what appears on your dashboard.
+        </p>
+        <label className="settings-toggle-row">
+          <span className="settings-toggle-label">Cover photo</span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={bannerOn}
+            className={`settings-toggle${bannerOn ? ' settings-toggle--on' : ''}`}
+            onClick={toggleBanner}
+            aria-label="Toggle dashboard cover photo"
           >
             <span className="settings-toggle-thumb" />
           </button>

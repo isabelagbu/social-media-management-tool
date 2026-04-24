@@ -9,10 +9,38 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json"
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "dist": "npm run build && electron-builder --mac"
+  },
+  "build": {
+    "appId": "com.isabelagbu.readysetpost",
+    "productName": "Ready Set Post!",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "out/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "build/icon.icns",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ]
+    },
+    "dmg": {
+      "title": "Ready Set Post!"
+    }
   },
   "dependencies": {
-    "@electron-toolkit/preload": "^3.0.2"
+    "@electron-toolkit/preload": "^3.0.2",
+    "react-image-crop": "^11.0.10"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",

@@ -9,7 +9,9 @@ const api = {
   readNotes: (): Promise<string> => ipcRenderer.invoke('notes:read'),
   writeNotes: (text: string): Promise<void> => ipcRenderer.invoke('notes:write', text),
   setTheme: (source: 'light' | 'dark' | 'system'): Promise<void> =>
-    ipcRenderer.invoke('theme:set', source)
+    ipcRenderer.invoke('theme:set', source),
+  notify: (title: string, body: string): Promise<void> =>
+    ipcRenderer.invoke('notify', title, body)
 }
 
 contextBridge.exposeInMainWorld('electron', electronAPI)

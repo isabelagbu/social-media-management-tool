@@ -5,11 +5,12 @@ export const ACCENT_STORAGE_KEY = 'smm-accent'
 
 export const ACCENT_PRESETS = [
   { id: 'rose', label: 'Rose', hex: '#c97b92' },
-  { id: 'ocean', label: 'Ocean', hex: '#2563eb' },
-  { id: 'forest', label: 'Forest', hex: '#059669' },
-  { id: 'violet', label: 'Violet', hex: '#7c3aed' },
   { id: 'amber', label: 'Amber', hex: '#d97706' },
-  { id: 'slate', label: 'Slate', hex: '#64748b' }
+  { id: 'forest', label: 'Forest', hex: '#059669' },
+  { id: 'ocean', label: 'Ocean', hex: '#2563eb' },
+  { id: 'violet', label: 'Violet', hex: '#7c3aed' },
+  { id: 'pearl', label: 'Pearl', hex: '#9e9eb8' },
+  { id: 'onyx', label: 'Onyx', hex: '#0a0a0a' }
 ] as const
 
 export type AccentPresetId = (typeof ACCENT_PRESETS)[number]['id']

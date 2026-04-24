@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { playTriplePop } from '../utils/sound'
 import ConfirmDialog from '../components/ConfirmDialog'
+import Tip from '../components/Tip'
 import PostEditorForm from '../components/PostEditorForm'
 import PostNotesFullView from '../components/PostNotesFullView'
 import PostCreateModal from '../components/PostCreateModal'
@@ -247,10 +248,8 @@ export default function ContentView({
     <div className="page content-view-page">
       <header className="page-header">
         <h1>Content</h1>
-        <p className="sub">
-          Switch between Drafts and scheduled/posted Content. Filters, search, and sort apply within
-          the tab you’re on. Click a post for full-screen script & notes.
-        </p>
+        <p className="sub">Manage all your posts and drafts in one place.</p>
+        <Tip>Switch tabs for Drafts vs Content · Filter by platform or status in the side panel · Click any post to open full-screen notes · Hit + to create a new post</Tip>
       </header>
 
       <div className="content-section-tabs" role="tablist" aria-label="Content area">
@@ -352,6 +351,7 @@ export default function ContentView({
               </li>
             </ul>
           </div>
+
         </aside>
 
         <div className="content-list-panel">
