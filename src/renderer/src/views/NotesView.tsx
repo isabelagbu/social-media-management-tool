@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { playPop } from '../utils/sound'
 import Tip from '../components/Tip'
+import { WORKSPACE_SYNCED_EVENT } from '../workspace/sync'
 
 // ── Notepad tabs ──────────────────────────────────────────────────────────────
 const NUM_TABS = 10
@@ -307,6 +308,20 @@ export default function NotesView(): React.ReactElement {
     }
     return notes
   })
+
+  useEffect(() => {
+    function onWorkspaceSynced(): void {
+      setTabs(readTabs())
+      setActive(readActive())
+      const notes = readStickyNotes()
+      if (notes.length > 0) {
+        topZ = Math.max(topZ, ...notes.map((n) => n.zIndex))
+      }
+      setStickies(notes)
+    }
+    window.addEventListener(WORKSPACE_SYNCED_EVENT, onWorkspaceSynced)
+    return () => window.removeEventListener(WORKSPACE_SYNCED_EVENT, onWorkspaceSynced)
+  }, [])
 
   // Persist tabs on change
   useEffect(() => {

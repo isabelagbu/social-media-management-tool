@@ -87,9 +87,7 @@ export default function PostEditorForm({
     const scheduledAt =
       !dateStr.trim() ? null : scheduledAtFromParts(dateStr, noTime ? '' : timeStr)
     if (status === 'scheduled' && !scheduledAt) return
-    let nextStatus = status
-    if (scheduledAt && nextStatus === 'draft') nextStatus = 'scheduled'
-    if (!scheduledAt && nextStatus === 'scheduled') nextStatus = 'draft'
+    const nextStatus = status
     if (nextStatus === 'posted') playTriplePop()
     onSave({
       title: trimmedTitle,

@@ -1,15 +1,30 @@
 import { app, BrowserWindow, clipboard, ipcMain, nativeTheme, Notification, shell } from 'electron'
 import { join, resolve } from 'path'
-import { readFile, writeFile, mkdir } from 'fs/promises'
-import { existsSync } from 'fs'
 import {
-  DEMO_STORE_VERSION,
   demoPostListOutOfSyncWithSeed,
   getGenericSeedPosts,
   getSeedPosts,
   isDemoOnlyPostList,
   SEED_SCRATCHPAD
 } from './seed-data'
+import {
+  connect as driveConnect,
+  disconnect as driveDisconnect,
+  getClientId as driveGetClientId,
+  getClientSecret as driveGetClientSecret,
+  getStatus as driveGetStatus,
+  initDriveStore,
+  readPosts as driveReadPosts,
+  readScratchpad as driveReadScratchpad,
+  replacePosts as driveReplacePosts,
+  setClientId as driveSetClientId,
+  setClientSecret as driveSetClientSecret,
+  syncNow as driveSyncNow,
+  writePosts as driveWritePosts,
+  writeScratchpad as driveWriteScratchpad,
+  readWorkspaceHydration as driveReadWorkspaceHydration,
+  reportWorkspaceSnapshot as driveReportWorkspaceSnapshot
+} from './drive/store'
 
 const APP_NAME = 'Ready Set Post'
 const APP_ICON_PATH = resolve(process.cwd(), 'build/icon.png')
@@ -72,86 +87,52 @@ function watchWindowShortcuts(win: BrowserWindow): void {
   })
 }
 
-const STORE_NAME = 'content-store.json'
-const SCRATCHPAD_NAME = 'scratchpad.json'
+type RawPost = Record<string, unknown> & { id?: unknown }
 
-function storePath(): string {
-  return join(app.getPath('userData'), STORE_NAME)
-}
-
-function scratchpadPath(): string {
-  return join(app.getPath('userData'), SCRATCHPAD_NAME)
-}
-
-async function persistStorePosts(posts: unknown[]): Promise<void> {
-  const dir = app.getPath('userData')
-  if (!existsSync(dir)) await mkdir(dir, { recursive: true })
-  const payload: { posts: unknown[]; demoStoreVersion?: number } = { posts }
-  if (isDemoOnlyPostList(posts)) {
-    payload.demoStoreVersion = DEMO_STORE_VERSION
-  }
-  await writeFile(storePath(), JSON.stringify(payload, null, 2), 'utf-8')
-}
-
+/**
+ * Reads posts from the local Drive cache, seeding/refreshing the demo set on first launch
+ * or when the bundled DEMO_STORE_VERSION moves ahead of an unmodified demo store.
+ */
 async function readStore(): Promise<{ posts: unknown[] }> {
-  const p = storePath()
-  if (!existsSync(p)) {
-    const posts = getSeedPosts()
-    await persistStorePosts(posts)
-    return { posts }
+  const { posts } = await driveReadPosts()
+  if (!posts || posts.length === 0) {
+    const seeded = getSeedPosts()
+    await driveWritePosts(seeded as RawPost[])
+    return { posts: seeded }
   }
-  const raw = await readFile(p, 'utf-8')
-  try {
-    const data = JSON.parse(raw) as { posts?: unknown[]; demoStoreVersion?: unknown }
-    const posts = Array.isArray(data.posts) ? data.posts : []
-    const ver = Number(data.demoStoreVersion)
-    const versionStale = !Number.isFinite(ver) || ver < DEMO_STORE_VERSION
-    const snapshotStale = demoPostListOutOfSyncWithSeed(posts)
-    if (isDemoOnlyPostList(posts) && (versionStale || snapshotStale)) {
-      const next = getSeedPosts()
-      await persistStorePosts(next)
-      return { posts: next }
-    }
-    return { posts }
-  } catch {
-    return { posts: [] }
+  if (isDemoOnlyPostList(posts) && demoPostListOutOfSyncWithSeed(posts)) {
+    const next = getSeedPosts()
+    await driveWritePosts(next as RawPost[])
+    return { posts: next }
   }
-}
-
-async function writeStore(data: { posts: unknown[] }): Promise<void> {
-  await persistStorePosts(data.posts)
-}
-
-/** Overwrites the post store with the current built-in demo (from this main process). */
-async function replaceStoreWithDemoSeed(): Promise<{ posts: unknown[] }> {
-  const posts = getSeedPosts()
-  await persistStorePosts(posts)
   return { posts }
 }
 
-/** Overwrites the post store with generic built-in demo data. */
+async function writeStore(data: { posts: unknown[] }): Promise<void> {
+  await driveWritePosts((data.posts ?? []) as RawPost[])
+}
+
+async function replaceStoreWithDemoSeed(): Promise<{ posts: unknown[] }> {
+  const posts = getSeedPosts()
+  await driveReplacePosts(posts as RawPost[])
+  return { posts }
+}
+
 async function replaceStoreWithGenericDemoSeed(): Promise<{ posts: unknown[] }> {
   const posts = getGenericSeedPosts()
-  await persistStorePosts(posts)
+  await driveReplacePosts(posts as RawPost[])
   return { posts }
 }
 
 async function readScratchpad(): Promise<string> {
-  const p = scratchpadPath()
-  if (!existsSync(p)) return SEED_SCRATCHPAD
-  const raw = await readFile(p, 'utf-8')
-  try {
-    const data = JSON.parse(raw) as { text?: unknown }
-    return typeof data.text === 'string' ? data.text : ''
-  } catch {
-    return ''
-  }
+  const text = await driveReadScratchpad()
+  if (text) return text
+  await driveWriteScratchpad(SEED_SCRATCHPAD)
+  return SEED_SCRATCHPAD
 }
 
 async function writeScratchpad(text: string): Promise<void> {
-  const dir = app.getPath('userData')
-  if (!existsSync(dir)) await mkdir(dir, { recursive: true })
-  await writeFile(scratchpadPath(), JSON.stringify({ text: text ?? '' }, null, 2), 'utf-8')
+  await driveWriteScratchpad(text ?? '')
 }
 
 function createWindow(): void {
@@ -215,7 +196,7 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   app.setName(APP_NAME)
   if (process.platform === 'darwin' && app.dock) {
     app.dock.setIcon(APP_ICON_PATH)
@@ -225,6 +206,8 @@ app.whenReady().then(() => {
     app.setAppUserModelId(app.isPackaged ? 'com.socialmediamanager.app' : process.execPath)
   }
   app.on('browser-window-created', (_, window) => watchWindowShortcuts(window))
+
+  await initDriveStore()
 
   ipcMain.handle('store:read', () => readStore())
   ipcMain.handle('store:write', (_, payload: { posts: unknown[] }) => writeStore(payload))
@@ -253,6 +236,21 @@ app.whenReady().then(() => {
     void shell.openExternal(safeUrl)
     return true
   })
+
+  ipcMain.handle('drive:status', () => driveGetStatus())
+  ipcMain.handle('drive:connect', () => driveConnect())
+  ipcMain.handle('drive:disconnect', () => driveDisconnect())
+  ipcMain.handle('drive:syncNow', () => driveSyncNow())
+  ipcMain.handle('drive:getClientId', () => driveGetClientId())
+  ipcMain.handle('drive:setClientId', (_, clientId: string) => driveSetClientId(clientId ?? ''))
+  ipcMain.handle('drive:getClientSecret', () => driveGetClientSecret())
+  ipcMain.handle('drive:setClientSecret', (_, clientSecret: string) =>
+    driveSetClientSecret(clientSecret ?? '')
+  )
+  ipcMain.handle('workspace:readHydration', () => driveReadWorkspaceHydration())
+  ipcMain.handle('workspace:reportSnapshot', (_, snapshot: Record<string, unknown>) =>
+    driveReportWorkspaceSnapshot(snapshot ?? {})
+  )
 
   createWindow()
   app.on('activate', () => {

@@ -63,6 +63,19 @@ export type Post = {
   postedUrl: string | null
   contentNotes: PostContentNotes
   createdAt: string
+  /** Last local modification time. Used for deterministic merging across devices. */
+  updatedAt: string
+}
+
+/** Returns the patch with `updatedAt` set to now. Use whenever a post is mutated locally. */
+export function withUpdatedAt<T extends Partial<Post>>(patch: T): T & { updatedAt: string } {
+  return { ...patch, updatedAt: new Date().toISOString() }
+}
+
+/** Stamps every post in a list with a fresh `updatedAt`. Use when bulk-replacing the store. */
+export function stampUpdatedAt<T extends Partial<Post>>(posts: T[]): (T & { updatedAt: string })[] {
+  const now = new Date().toISOString()
+  return posts.map((p) => ({ ...p, updatedAt: now }))
 }
 
 export function livePostUrl(post: Post): string | null {
@@ -95,6 +108,7 @@ export function parsePost(raw: unknown): Post | null {
   const postedUrl =
     o.postedUrl === null || typeof o.postedUrl === 'string' ? o.postedUrl : null
   const createdAt = typeof o.createdAt === 'string' ? o.createdAt : new Date().toISOString()
+  const updatedAt = typeof o.updatedAt === 'string' ? o.updatedAt : createdAt
   const contentNotes = parseContentNotes(o.contentNotes)
   const rawTitle = typeof o.title === 'string' ? o.title : ''
   const derivedTitle =
@@ -115,7 +129,8 @@ export function parsePost(raw: unknown): Post | null {
     scheduledAt,
     postedUrl,
     contentNotes,
-    createdAt
+    createdAt,
+    updatedAt
   }
 }
 

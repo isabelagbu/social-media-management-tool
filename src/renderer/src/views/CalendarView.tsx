@@ -120,7 +120,9 @@ export default function CalendarView({
     notesModalPostId !== null ? posts.find((p) => p.id === notesModalPostId) : undefined
 
   function setNotesForPost(id: string, contentNotes: PostContentNotes): void {
-    setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, contentNotes } : p)))
+    setPosts((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, contentNotes, updatedAt: new Date().toISOString() } : p))
+    )
   }
 
   function prevMonth(): void {
@@ -146,6 +148,7 @@ export default function CalendarView({
     scheduledAt: string | null
     postedUrl: string | null
   }): void {
+    const now = new Date().toISOString()
     const newPost: Post = {
       id: newPostId(),
       title: payload.title,
@@ -156,7 +159,8 @@ export default function CalendarView({
       scheduledAt: payload.status === 'scheduled' ? payload.scheduledAt : null,
       postedUrl: payload.status === 'posted' ? payload.postedUrl : null,
       contentNotes: { ...EMPTY_CONTENT_NOTES, caption: payload.body.trim() },
-      createdAt: new Date().toISOString()
+      createdAt: now,
+      updatedAt: now
     }
     setPosts((prev) => [...prev, newPost])
     setShowCreate(false)
@@ -188,7 +192,7 @@ export default function CalendarView({
         if (isTodayTarget && next.getTime() <= now.getTime()) {
           next.setTime(now.getTime() + 5 * 60_000)
         }
-        return { ...p, scheduledAt: next.toISOString() }
+        return { ...p, scheduledAt: next.toISOString(), updatedAt: new Date().toISOString() }
       })
     )
     // Switch day panel to the target date
@@ -285,7 +289,11 @@ export default function CalendarView({
               dateKey={selectedKey}
               posts={byDay.get(selectedKey) ?? []}
               onUpdatePost={(id, patch) =>
-                setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)))
+                setPosts((prev) =>
+                  prev.map((p) =>
+                    p.id === id ? { ...p, ...patch, updatedAt: new Date().toISOString() } : p
+                  )
+                )
               }
               onOpenNotes={(postId) => setNotesModalPostId(postId)}
               onCreatePost={() => setShowCreate(true)}
@@ -311,7 +319,15 @@ export default function CalendarView({
           post={notesModalPost}
           onClose={() => setNotesModalPostId(null)}
           onNotesChange={(next) => setNotesForPost(notesModalPost.id, next)}
-          onPostChange={(patch) => setPosts((prev) => prev.map((p) => p.id === notesModalPost.id ? { ...p, ...patch } : p))}
+          onPostChange={(patch) =>
+            setPosts((prev) =>
+              prev.map((p) =>
+                p.id === notesModalPost.id
+                  ? { ...p, ...patch, updatedAt: new Date().toISOString() }
+                  : p
+              )
+            )
+          }
           onDelete={() => { setPosts((prev) => prev.filter((p) => p.id !== notesModalPost.id)); setNotesModalPostId(null) }}
         />
       )}

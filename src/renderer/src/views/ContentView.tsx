@@ -20,6 +20,7 @@ import {
   type PostContentNotes,
   type Status
 } from '../posts/types'
+import { WORKSPACE_SYNCED_EVENT } from '../workspace/sync'
 
 const FILTER_NONE = '__none__'
 
@@ -163,6 +164,14 @@ export default function ContentView({
   }, [section])
 
   useEffect(() => {
+    function onWorkspaceSynced(): void {
+      setSection(readStoredSection())
+    }
+    window.addEventListener(WORKSPACE_SYNCED_EVENT, onWorkspaceSynced)
+    return () => window.removeEventListener(WORKSPACE_SYNCED_EVENT, onWorkspaceSynced)
+  }, [])
+
+  useEffect(() => {
     function postInCurrentSection(id: string): boolean {
       const p = posts.find((x) => x.id === id)
       return p !== undefined && matchesSection(p, section)
@@ -195,7 +204,9 @@ export default function ContentView({
   }
 
   function updatePost(id: string, patch: Partial<Post>): void {
-    setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)))
+    setPosts((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, ...patch, updatedAt: new Date().toISOString() } : p))
+    )
   }
 
   function removePost(id: string): void {
@@ -264,7 +275,8 @@ export default function ContentView({
       scheduledAt: payload.status === 'scheduled' ? payload.scheduledAt : null,
       postedUrl: payload.status === 'posted' ? payload.postedUrl : null,
       contentNotes: { ...EMPTY_CONTENT_NOTES, caption: payload.body.trim() },
-      createdAt: nowIso
+      createdAt: nowIso,
+      updatedAt: nowIso
     }
     setPosts((prev) => [post, ...prev])
     setCreateOpen(false)

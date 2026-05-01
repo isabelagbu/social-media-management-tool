@@ -1,4 +1,5 @@
-import { createContext, useCallback, useContext, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { WORKSPACE_SYNCED_EVENT } from '../workspace/sync'
 import {
   newAccountId,
   persistAccounts,
@@ -23,6 +24,12 @@ const AccountsContext = createContext<AccountsContextType>({
 
 export function AccountsProvider({ children }: { children: React.ReactNode }): React.ReactElement {
   const [accounts, setAccounts] = useState<Account[]>(() => readAccounts())
+
+  useEffect(() => {
+    const onSync = (): void => setAccounts(readAccounts())
+    window.addEventListener(WORKSPACE_SYNCED_EVENT, onSync)
+    return () => window.removeEventListener(WORKSPACE_SYNCED_EVENT, onSync)
+  }, [])
 
   const addAccount = useCallback((platform: Platform, name: string, url: string) => {
     setAccounts((prev) => {

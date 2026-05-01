@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { useAccounts } from '../accounts/context'
 import { PLATFORM_META, PLATFORMS, replaceAccountsWithSeed, type Platform } from '../accounts/types'
@@ -10,6 +10,19 @@ import { isInAppAccountPreviewEnabled, setInAppAccountPreviewEnabled } from '../
 import { PLATFORM_OPTIONS } from '../posts/types'
 import { getEnabledPlatformFormLabels, setEnabledPlatformFormLabels } from '../utils/enabledPlatforms'
 import PlatformLogoImg from '../components/PlatformLogoImg'
+import { WORKSPACE_SYNCED_EVENT } from '../workspace/sync'
+
+type DriveSyncStatus = {
+  connected: boolean
+  email: string | null
+  clientIdConfigured: boolean
+  credentialsManaged: boolean
+  appIsDev: boolean
+  lastSyncedAt: number | null
+  lastError: string | null
+  syncing: boolean
+  hasPendingChanges: boolean
+}
 
 const BANNER_ENABLED_KEY = 'smm-dash-banner-enabled'
 export function isBannerEnabled(): boolean {
@@ -48,6 +61,19 @@ export default function SettingsView({
   const [bannerOn, setBannerOn] = useState(() => isBannerEnabled())
   const [accountsPreviewOn, setAccountsPreviewOn] = useState(() => isInAppAccountPreviewEnabled())
   const [formPlatformEnabled, setFormPlatformEnabled] = useState<Set<string>>(() => new Set(getEnabledPlatformFormLabels()))
+
+  useEffect(() => {
+    function onWorkspaceSynced(): void {
+      setSoundOn(isSoundEnabled())
+      setHintsOn(isHintsEnabled())
+      setRemindersOn(isRemindersEnabled())
+      setBannerOn(isBannerEnabled())
+      setAccountsPreviewOn(isInAppAccountPreviewEnabled())
+      setFormPlatformEnabled(new Set(getEnabledPlatformFormLabels()))
+    }
+    window.addEventListener(WORKSPACE_SYNCED_EVENT, onWorkspaceSynced)
+    return () => window.removeEventListener(WORKSPACE_SYNCED_EVENT, onWorkspaceSynced)
+  }, [])
 
   function toggleSound(): void {
     const next = !soundOn
@@ -99,6 +125,128 @@ export default function SettingsView({
   const [editName, setEditName] = useState('')
   const [editUrl, setEditUrl] = useState('')
   const [confirmDemoReset, setConfirmDemoReset] = useState<'personal' | 'generic' | null>(null)
+
+  const [driveStatus, setDriveStatus] = useState<DriveSyncStatus | null>(null)
+  const [driveClientIdInput, setDriveClientIdInput] = useState<string>('')
+  const [driveClientIdSaved, setDriveClientIdSaved] = useState<string>('')
+  const [driveClientSecretInput, setDriveClientSecretInput] = useState<string>('')
+  const [driveClientSecretSaved, setDriveClientSecretSaved] = useState<string>('')
+  const [driveBusy, setDriveBusy] = useState<'connect' | 'disconnect' | 'sync' | 'save' | null>(null)
+  const [driveActionError, setDriveActionError] = useState<string | null>(null)
+  const [confirmDriveDisconnect, setConfirmDriveDisconnect] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    void (async () => {
+      const [status, clientId, clientSecret] = await Promise.all([
+        window.api.driveGetStatus(),
+        window.api.driveGetClientId(),
+        window.api.driveGetClientSecret()
+      ])
+      if (!alive) return
+      setDriveStatus(status)
+      setDriveClientIdSaved(clientId)
+      setDriveClientIdInput(clientId)
+      setDriveClientSecretSaved(clientSecret)
+      setDriveClientSecretInput(clientSecret)
+    })()
+    const off = window.api.onDriveStatusChange((partial) => {
+      setDriveStatus((prev) => (prev ? { ...prev, ...partial } : prev))
+    })
+    return () => {
+      alive = false
+      off()
+    }
+  }, [])
+
+  async function refreshDriveStatus(): Promise<void> {
+    const status = await window.api.driveGetStatus()
+    setDriveStatus(status)
+  }
+
+  async function saveDriveClientId(): Promise<void> {
+    setDriveBusy('save')
+    setDriveActionError(null)
+    try {
+      const next = driveClientIdInput.trim()
+      const nextSecret = driveClientSecretInput.trim()
+      await Promise.all([
+        window.api.driveSetClientId(next),
+        window.api.driveSetClientSecret(nextSecret)
+      ])
+      setDriveClientIdSaved(next)
+      setDriveClientSecretSaved(nextSecret)
+      await refreshDriveStatus()
+    } catch (err) {
+      setDriveActionError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setDriveBusy(null)
+    }
+  }
+
+  async function connectDrive(): Promise<void> {
+    setDriveBusy('connect')
+    setDriveActionError(null)
+    try {
+      const nextId = driveClientIdInput.trim()
+      const nextSecret = driveClientSecretInput.trim()
+      if (!nextId) {
+        throw new Error('Paste your Google Client ID first.')
+      }
+      // Keep UX forgiving: clicking Connect persists the latest typed values first.
+      await Promise.all([
+        window.api.driveSetClientId(nextId),
+        window.api.driveSetClientSecret(nextSecret)
+      ])
+      setDriveClientIdSaved(nextId)
+      setDriveClientSecretSaved(nextSecret)
+      const status = await window.api.driveConnect()
+      setDriveStatus(status)
+    } catch (err) {
+      setDriveActionError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setDriveBusy(null)
+    }
+  }
+
+  async function disconnectDrive(): Promise<void> {
+    setDriveBusy('disconnect')
+    setDriveActionError(null)
+    try {
+      const status = await window.api.driveDisconnect()
+      setDriveStatus(status)
+    } catch (err) {
+      setDriveActionError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setDriveBusy(null)
+      setConfirmDriveDisconnect(false)
+    }
+  }
+
+  async function syncNow(): Promise<void> {
+    setDriveBusy('sync')
+    setDriveActionError(null)
+    try {
+      const status = await window.api.driveSyncNow()
+      setDriveStatus(status)
+    } catch (err) {
+      setDriveActionError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setDriveBusy(null)
+    }
+  }
+
+  function formatLastSync(ts: number | null): string {
+    if (!ts) return 'Never'
+    const d = new Date(ts)
+    const sameDay = new Date().toDateString() === d.toDateString()
+    return sameDay
+      ? `Today at ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+      : d.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+  }
+
+  const showDriveCredentialInputs =
+    (driveStatus?.appIsDev ?? true) || !(driveStatus?.credentialsManaged ?? false)
 
   function openAdd(platform: Platform): void {
     setAddingFor(platform)
@@ -536,6 +684,153 @@ export default function SettingsView({
         <h2 id="settings-chapter-workspace" className="settings-chapter-title">
           Workspace
         </h2>
+
+        <section
+          className="settings-section card settings-section--compact"
+          aria-labelledby="settings-drive-heading"
+        >
+          <h3 id="settings-drive-heading" className="settings-section-title">
+            Google Drive sync
+          </h3>
+          <p className="muted small settings-section-lead">
+            Store your posts and notes in your own Google Drive folder. Ready Set Post creates a
+            <strong> Ready Set Post </strong>
+            folder in your Drive and keeps it in sync automatically across devices.
+          </p>
+
+          {!driveStatus ? (
+            <p className="muted small">Loading sync status…</p>
+          ) : (
+            <>
+              {showDriveCredentialInputs && (
+                <div className="drive-clientid-row">
+                <label className="drive-clientid-label" htmlFor="drive-client-id-input">
+                  Google OAuth Client ID
+                </label>
+                <p className="muted small drive-clientid-help">
+                  Create a Desktop OAuth client in the Google Cloud Console with the Drive API
+                  enabled, then paste the Client ID here.
+                </p>
+                <div className="drive-clientid-input-row">
+                  <input
+                    id="drive-client-id-input"
+                    type="text"
+                    value={driveClientIdInput}
+                    placeholder="123456789-abcdef.apps.googleusercontent.com"
+                    onChange={(e) => setDriveClientIdInput(e.target.value)}
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn--primary btn--sm"
+                    disabled={
+                      driveBusy === 'save' ||
+                      !driveClientIdInput.trim() ||
+                      (driveClientIdInput.trim() === driveClientIdSaved &&
+                        driveClientSecretInput.trim() === driveClientSecretSaved)
+                    }
+                    onClick={() => void saveDriveClientId()}
+                  >
+                    {driveBusy === 'save'
+                      ? 'Saving…'
+                      : driveClientIdSaved
+                        ? 'Update'
+                        : 'Save'}
+                  </button>
+                </div>
+                <p className="muted small drive-clientid-help">
+                  Optional fallback: paste Client Secret only if Google returns
+                  <code> client_secret is missing</code>.
+                </p>
+                <div className="drive-clientid-input-row">
+                  <input
+                    type="password"
+                    value={driveClientSecretInput}
+                    placeholder="GOCSPX-..."
+                    onChange={(e) => setDriveClientSecretInput(e.target.value)}
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                </div>
+                </div>
+              )}
+
+              {!driveStatus.connected && (
+                <div className="drive-actions">
+                  <button
+                    type="button"
+                    className="primary"
+                    disabled={
+                      driveBusy === 'connect' ||
+                      (!(driveStatus?.credentialsManaged) && !driveClientIdSaved.trim())
+                    }
+                    onClick={() => void connectDrive()}
+                  >
+                    {driveBusy === 'connect' ? 'Opening Google…' : 'Connect Google Drive'}
+                  </button>
+                  <span className="muted small drive-actions-hint">
+                    {driveStatus?.credentialsManaged
+                      ? 'Opens your browser to sign in using app-managed credentials.'
+                      : driveClientIdSaved.trim()
+                      ? 'Opens your browser to sign in. Tokens are encrypted on this device.'
+                      : 'Save your Client ID first, then connect.'}
+                  </span>
+                </div>
+              )}
+
+              {driveStatus.connected && (
+                <>
+                  <div className="drive-status-grid">
+                    <div className="drive-status-row">
+                      <span className="muted small">Account</span>
+                      <span className="drive-status-value">
+                        {driveStatus.email ?? 'Connected'}
+                      </span>
+                    </div>
+                    <div className="drive-status-row">
+                      <span className="muted small">Last sync</span>
+                      <span className="drive-status-value">
+                        {driveStatus.syncing ? 'Syncing now…' : formatLastSync(driveStatus.lastSyncedAt)}
+                      </span>
+                    </div>
+                    <div className="drive-status-row">
+                      <span className="muted small">Pending changes</span>
+                      <span className="drive-status-value">
+                        {driveStatus.hasPendingChanges ? 'Queued for upload' : 'None'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="drive-actions">
+                    <button
+                      type="button"
+                      className="ghost"
+                      disabled={driveBusy === 'sync' || driveStatus.syncing}
+                      onClick={() => void syncNow()}
+                    >
+                      {driveBusy === 'sync' || driveStatus.syncing ? 'Syncing…' : 'Sync now'}
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost danger"
+                      disabled={driveBusy === 'disconnect'}
+                      onClick={() => setConfirmDriveDisconnect(true)}
+                    >
+                      Disconnect
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {(driveActionError || driveStatus.lastError) && (
+                <p className="drive-error muted small">
+                  <strong>Error:</strong> {driveActionError ?? driveStatus.lastError}
+                </p>
+              )}
+            </>
+          )}
+        </section>
+
         <section className="settings-section card settings-section--compact" aria-labelledby="settings-demo-reset-heading">
           <h3 id="settings-demo-reset-heading" className="settings-section-title">
             Demo / sample posts
@@ -581,6 +876,16 @@ export default function SettingsView({
           />
         )
       })()}
+
+      {confirmDriveDisconnect && (
+        <ConfirmDialog
+          title="Disconnect Google Drive?"
+          message="Sync will stop. Your posts and notes stay on this device, and the files in your Drive folder are not deleted."
+          confirmLabel="Disconnect"
+          onConfirm={() => void disconnectDrive()}
+          onCancel={() => setConfirmDriveDisconnect(false)}
+        />
+      )}
 
       {confirmDemoReset && (
         <ConfirmDialog

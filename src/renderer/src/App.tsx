@@ -21,6 +21,7 @@ import DashboardView from './views/DashboardView'
 import NotesView from './views/NotesView'
 import AccountsView from './views/AccountsView'
 import SettingsView from './views/SettingsView'
+import { WORKSPACE_SYNCED_EVENT } from './workspace/sync'
 
 function Icon({ d, d2 }: { d: string; d2?: string }): React.ReactElement {
   return (
@@ -129,6 +130,14 @@ export default function App(): React.ReactElement {
   }, [])
 
   useEffect(() => {
+    // Drive-driven external updates (other device pulled in by background sync).
+    return window.api.onDrivePostsChange(({ posts: raw }) => {
+      const parsed = (raw ?? []).map(parsePost).filter((p): p is Post => p !== null)
+      setPosts(parsed)
+    })
+  }, [])
+
+  useEffect(() => {
     if (!loaded) return
     const t = setTimeout(() => {
       void window.api.writeStore({ posts })
@@ -149,6 +158,17 @@ export default function App(): React.ReactElement {
     }
     window.addEventListener('smm-accounts-preview-change', onAccountsPreviewChange)
     return () => window.removeEventListener('smm-accounts-preview-change', onAccountsPreviewChange)
+  }, [])
+
+  useEffect(() => {
+    function onWorkspaceSynced(): void {
+      setTheme(readStoredTheme())
+      setAccent(readStoredAccent())
+      setShowOnboarding(!hasSeenOnboarding())
+      setAccountsPreviewOn(isInAppAccountPreviewEnabled())
+    }
+    window.addEventListener(WORKSPACE_SYNCED_EVENT, onWorkspaceSynced)
+    return () => window.removeEventListener(WORKSPACE_SYNCED_EVENT, onWorkspaceSynced)
   }, [])
 
   useEffect(() => {

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { Post } from '../posts/types'
 import { isRemindersEnabled, REMINDERS_CHANGE_EVENT } from '../utils/reminders'
+import { WORKSPACE_SYNCED_EVENT } from '../workspace/sync'
 
 const CHECK_INTERVAL_MS = 60_000 // check every minute
 const WINDOW_MS = CHECK_INTERVAL_MS
@@ -16,6 +17,14 @@ export function useReminders(posts: Post[]): void {
     }
     window.addEventListener(REMINDERS_CHANGE_EVENT, onchange)
     return () => window.removeEventListener(REMINDERS_CHANGE_EVENT, onchange)
+  }, [])
+
+  useEffect(() => {
+    function onWorkspaceSynced(): void {
+      enabledRef.current = isRemindersEnabled()
+    }
+    window.addEventListener(WORKSPACE_SYNCED_EVENT, onWorkspaceSynced)
+    return () => window.removeEventListener(WORKSPACE_SYNCED_EVENT, onWorkspaceSynced)
   }, [])
 
   // Keep a stable ref to posts so the interval doesn't need to re-register

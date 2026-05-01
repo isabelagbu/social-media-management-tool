@@ -8,6 +8,7 @@ import type { Platform } from '../accounts/types'
 import type { NavId } from '../nav'
 import { pad2 } from '../posts/datetime'
 import type { Post } from '../posts/types'
+import { WORKSPACE_SYNCED_EVENT } from '../workspace/sync'
 
 function fmt(iso: string): string {
   return new Date(iso).toLocaleString('en-US', {
@@ -239,6 +240,24 @@ export default function DashboardView({
     }
     window.addEventListener('smm-banner-change', onBannerChange)
     return () => window.removeEventListener('smm-banner-change', onBannerChange)
+  }, [])
+
+  useEffect(() => {
+    function onWorkspaceSynced(): void {
+      try {
+        setGreetingText(localStorage.getItem(GREETING_KEY) || DEFAULT_GREETING)
+      } catch {
+        setGreetingText(DEFAULT_GREETING)
+      }
+      try {
+        setBanner(localStorage.getItem(BANNER_KEY))
+      } catch {
+        setBanner(null)
+      }
+      setBannerEnabled(isBannerEnabled())
+    }
+    window.addEventListener(WORKSPACE_SYNCED_EVENT, onWorkspaceSynced)
+    return () => window.removeEventListener(WORKSPACE_SYNCED_EVENT, onWorkspaceSynced)
   }, [])
 
   function pickBanner(): void {
