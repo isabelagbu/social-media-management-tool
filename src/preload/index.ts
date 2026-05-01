@@ -17,10 +17,6 @@ const api = {
   readStore: (): Promise<{ posts: unknown[] }> => ipcRenderer.invoke('store:read'),
   writeStore: (data: { posts: unknown[] }): Promise<void> =>
     ipcRenderer.invoke('store:write', data),
-  replaceStoreWithDemoSeed: (): Promise<{ posts: unknown[] }> =>
-    ipcRenderer.invoke('store:replaceDemo'),
-  replaceStoreWithGenericDemoSeed: (): Promise<{ posts: unknown[] }> =>
-    ipcRenderer.invoke('store:replaceDemoGeneric'),
   copyText: (text: string): Promise<boolean> => ipcRenderer.invoke('clipboard:write', text),
   readNotes: (): Promise<string> => ipcRenderer.invoke('notes:read'),
   writeNotes: (text: string): Promise<void> => ipcRenderer.invoke('notes:write', text),
@@ -34,12 +30,6 @@ const api = {
   driveConnect: (): Promise<DriveSyncStatus> => ipcRenderer.invoke('drive:connect'),
   driveDisconnect: (): Promise<DriveSyncStatus> => ipcRenderer.invoke('drive:disconnect'),
   driveSyncNow: (): Promise<DriveSyncStatus> => ipcRenderer.invoke('drive:syncNow'),
-  driveGetClientId: (): Promise<string> => ipcRenderer.invoke('drive:getClientId'),
-  driveSetClientId: (clientId: string): Promise<void> =>
-    ipcRenderer.invoke('drive:setClientId', clientId),
-  driveGetClientSecret: (): Promise<string> => ipcRenderer.invoke('drive:getClientSecret'),
-  driveSetClientSecret: (clientSecret: string): Promise<void> =>
-    ipcRenderer.invoke('drive:setClientSecret', clientSecret),
 
   onDriveStatusChange: (cb: (status: Partial<DriveSyncStatus>) => void): (() => void) => {
     const listener = (_event: unknown, status: Partial<DriveSyncStatus>): void => cb(status)

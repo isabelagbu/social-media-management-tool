@@ -40,6 +40,7 @@
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
+    "dotenv": "^17.4.2",
     "react-image-crop": "^11.0.10"
   },
   "devDependencies": {

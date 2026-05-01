@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { useAccounts } from '../accounts/context'
-import { PLATFORM_META, PLATFORMS, replaceAccountsWithSeed, type Platform } from '../accounts/types'
+import { PLATFORM_META, PLATFORMS, type Platform } from '../accounts/types'
 import { ACCENT_PRESETS, type AccentPresetId, type AppTheme } from '../theme'
 import { isSoundEnabled, setSoundEnabled } from '../utils/sound'
 import { isHintsEnabled, setHintsEnabled } from '../utils/hints'
@@ -124,31 +124,18 @@ export default function SettingsView({
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [editUrl, setEditUrl] = useState('')
-  const [confirmDemoReset, setConfirmDemoReset] = useState<'personal' | 'generic' | null>(null)
 
   const [driveStatus, setDriveStatus] = useState<DriveSyncStatus | null>(null)
-  const [driveClientIdInput, setDriveClientIdInput] = useState<string>('')
-  const [driveClientIdSaved, setDriveClientIdSaved] = useState<string>('')
-  const [driveClientSecretInput, setDriveClientSecretInput] = useState<string>('')
-  const [driveClientSecretSaved, setDriveClientSecretSaved] = useState<string>('')
-  const [driveBusy, setDriveBusy] = useState<'connect' | 'disconnect' | 'sync' | 'save' | null>(null)
+  const [driveBusy, setDriveBusy] = useState<'connect' | 'disconnect' | 'sync' | null>(null)
   const [driveActionError, setDriveActionError] = useState<string | null>(null)
   const [confirmDriveDisconnect, setConfirmDriveDisconnect] = useState(false)
 
   useEffect(() => {
     let alive = true
     void (async () => {
-      const [status, clientId, clientSecret] = await Promise.all([
-        window.api.driveGetStatus(),
-        window.api.driveGetClientId(),
-        window.api.driveGetClientSecret()
-      ])
+      const status = await window.api.driveGetStatus()
       if (!alive) return
       setDriveStatus(status)
-      setDriveClientIdSaved(clientId)
-      setDriveClientIdInput(clientId)
-      setDriveClientSecretSaved(clientSecret)
-      setDriveClientSecretInput(clientSecret)
     })()
     const off = window.api.onDriveStatusChange((partial) => {
       setDriveStatus((prev) => (prev ? { ...prev, ...partial } : prev))
@@ -159,47 +146,10 @@ export default function SettingsView({
     }
   }, [])
 
-  async function refreshDriveStatus(): Promise<void> {
-    const status = await window.api.driveGetStatus()
-    setDriveStatus(status)
-  }
-
-  async function saveDriveClientId(): Promise<void> {
-    setDriveBusy('save')
-    setDriveActionError(null)
-    try {
-      const next = driveClientIdInput.trim()
-      const nextSecret = driveClientSecretInput.trim()
-      await Promise.all([
-        window.api.driveSetClientId(next),
-        window.api.driveSetClientSecret(nextSecret)
-      ])
-      setDriveClientIdSaved(next)
-      setDriveClientSecretSaved(nextSecret)
-      await refreshDriveStatus()
-    } catch (err) {
-      setDriveActionError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setDriveBusy(null)
-    }
-  }
-
   async function connectDrive(): Promise<void> {
     setDriveBusy('connect')
     setDriveActionError(null)
     try {
-      const nextId = driveClientIdInput.trim()
-      const nextSecret = driveClientSecretInput.trim()
-      if (!nextId) {
-        throw new Error('Paste your Google Client ID first.')
-      }
-      // Keep UX forgiving: clicking Connect persists the latest typed values first.
-      await Promise.all([
-        window.api.driveSetClientId(nextId),
-        window.api.driveSetClientSecret(nextSecret)
-      ])
-      setDriveClientIdSaved(nextId)
-      setDriveClientSecretSaved(nextSecret)
       const status = await window.api.driveConnect()
       setDriveStatus(status)
     } catch (err) {
@@ -244,9 +194,6 @@ export default function SettingsView({
       ? `Today at ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
       : d.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
   }
-
-  const showDriveCredentialInputs =
-    (driveStatus?.appIsDev ?? true) || !(driveStatus?.credentialsManaged ?? false)
 
   function openAdd(platform: Platform): void {
     setAddingFor(platform)
@@ -483,15 +430,6 @@ export default function SettingsView({
               <span className="settings-toggle-thumb" />
             </button>
           </label>
-          <div className="settings-reminder-test">
-            <button
-              type="button"
-              className="ghost small"
-              onClick={() => setConfirmDemoReset('personal')}
-            >
-              Load personal demo data
-            </button>
-          </div>
         </section>
 
         <section
@@ -682,7 +620,7 @@ export default function SettingsView({
 
       <div className="settings-chapter settings-chapter--last" aria-labelledby="settings-chapter-workspace">
         <h2 id="settings-chapter-workspace" className="settings-chapter-title">
-          Workspace
+          Storage
         </h2>
 
         <section
@@ -702,69 +640,12 @@ export default function SettingsView({
             <p className="muted small">Loading sync status…</p>
           ) : (
             <>
-              {showDriveCredentialInputs && (
-                <div className="drive-clientid-row">
-                <label className="drive-clientid-label" htmlFor="drive-client-id-input">
-                  Google OAuth Client ID
-                </label>
-                <p className="muted small drive-clientid-help">
-                  Create a Desktop OAuth client in the Google Cloud Console with the Drive API
-                  enabled, then paste the Client ID here.
-                </p>
-                <div className="drive-clientid-input-row">
-                  <input
-                    id="drive-client-id-input"
-                    type="text"
-                    value={driveClientIdInput}
-                    placeholder="123456789-abcdef.apps.googleusercontent.com"
-                    onChange={(e) => setDriveClientIdInput(e.target.value)}
-                    autoComplete="off"
-                    spellCheck={false}
-                  />
-                  <button
-                    type="button"
-                    className="btn btn--primary btn--sm"
-                    disabled={
-                      driveBusy === 'save' ||
-                      !driveClientIdInput.trim() ||
-                      (driveClientIdInput.trim() === driveClientIdSaved &&
-                        driveClientSecretInput.trim() === driveClientSecretSaved)
-                    }
-                    onClick={() => void saveDriveClientId()}
-                  >
-                    {driveBusy === 'save'
-                      ? 'Saving…'
-                      : driveClientIdSaved
-                        ? 'Update'
-                        : 'Save'}
-                  </button>
-                </div>
-                <p className="muted small drive-clientid-help">
-                  Optional fallback: paste Client Secret only if Google returns
-                  <code> client_secret is missing</code>.
-                </p>
-                <div className="drive-clientid-input-row">
-                  <input
-                    type="password"
-                    value={driveClientSecretInput}
-                    placeholder="GOCSPX-..."
-                    onChange={(e) => setDriveClientSecretInput(e.target.value)}
-                    autoComplete="off"
-                    spellCheck={false}
-                  />
-                </div>
-                </div>
-              )}
-
               {!driveStatus.connected && (
                 <div className="drive-actions">
                   <button
                     type="button"
                     className="primary"
-                    disabled={
-                      driveBusy === 'connect' ||
-                      (!(driveStatus?.credentialsManaged) && !driveClientIdSaved.trim())
-                    }
+                    disabled={driveBusy === 'connect' || !driveStatus.credentialsManaged}
                     onClick={() => void connectDrive()}
                   >
                     {driveBusy === 'connect' ? 'Opening Google…' : 'Connect Google Drive'}
@@ -772,9 +653,7 @@ export default function SettingsView({
                   <span className="muted small drive-actions-hint">
                     {driveStatus?.credentialsManaged
                       ? 'Opens your browser to sign in using app-managed credentials.'
-                      : driveClientIdSaved.trim()
-                      ? 'Opens your browser to sign in. Tokens are encrypted on this device.'
-                      : 'Save your Client ID first, then connect.'}
+                      : 'Google Drive credentials are not configured for this build.'}
                   </span>
                 </div>
               )}
@@ -831,33 +710,6 @@ export default function SettingsView({
           )}
         </section>
 
-        <section className="settings-section card settings-section--compact" aria-labelledby="settings-demo-reset-heading">
-          <h3 id="settings-demo-reset-heading" className="settings-section-title">
-            Demo / sample posts
-          </h3>
-          <p className="muted small settings-section-lead">
-            Replace all posts in this app with the latest built-in demo set from your installed build. Use this if
-            content looks out of date after an update, or if you only ever used sample data and want a clean refresh.
-          </p>
-          <p className="muted small settings-section-lead">
-            If you are developing and edit <code>seed-data.ts</code>, fully quit the app and start{' '}
-            <code>npm run dev</code> again so the main process loads your changes.
-          </p>
-          <button
-            type="button"
-            className="ghost"
-            onClick={() => setConfirmDemoReset('personal')}
-          >
-            Load personal demo data…
-          </button>
-          <button
-            type="button"
-            className="ghost"
-            onClick={() => setConfirmDemoReset('generic')}
-          >
-            Load generic demo data…
-          </button>
-        </section>
       </div>
 
       <footer className="settings-footer">
@@ -887,31 +739,6 @@ export default function SettingsView({
         />
       )}
 
-      {confirmDemoReset && (
-        <ConfirmDialog
-          title={`Load ${confirmDemoReset === 'generic' ? 'generic' : 'personal'} demo data?`}
-          message="Current posts and demo accounts in this workspace will be replaced. This is intended for testing."
-          confirmLabel="Load demo data"
-          onConfirm={() => {
-            const target = confirmDemoReset
-            setConfirmDemoReset(null)
-            void (async () => {
-              try {
-                if (target === 'generic') {
-                  await window.api.replaceStoreWithGenericDemoSeed()
-                } else {
-                  await window.api.replaceStoreWithDemoSeed()
-                }
-                replaceAccountsWithSeed(target)
-                window.location.reload()
-              } catch {
-                window.alert('Could not load demo data. Try again or restart the app.')
-              }
-            })()
-          }}
-          onCancel={() => setConfirmDemoReset(null)}
-        />
-      )}
     </div>
   )
 }

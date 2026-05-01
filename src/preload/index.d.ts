@@ -17,8 +17,6 @@ export type DriveSyncStatus = {
 export type AppAPI = {
   readStore: () => Promise<StorePayload>
   writeStore: (data: StorePayload) => Promise<void>
-  replaceStoreWithDemoSeed: () => Promise<StorePayload>
-  replaceStoreWithGenericDemoSeed: () => Promise<StorePayload>
   copyText: (text: string) => Promise<boolean>
   readNotes: () => Promise<string>
   writeNotes: (text: string) => Promise<void>
@@ -30,10 +28,6 @@ export type AppAPI = {
   driveConnect: () => Promise<DriveSyncStatus>
   driveDisconnect: () => Promise<DriveSyncStatus>
   driveSyncNow: () => Promise<DriveSyncStatus>
-  driveGetClientId: () => Promise<string>
-  driveSetClientId: (clientId: string) => Promise<void>
-  driveGetClientSecret: () => Promise<string>
-  driveSetClientSecret: (clientSecret: string) => Promise<void>
 
   onDriveStatusChange: (cb: (status: Partial<DriveSyncStatus>) => void) => () => void
   onDrivePostsChange: (cb: (payload: { posts: unknown[] }) => void) => () => void

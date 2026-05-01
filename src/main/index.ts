@@ -2,7 +2,6 @@ import { app, BrowserWindow, clipboard, ipcMain, nativeTheme, Notification, shel
 import { join, resolve } from 'path'
 import {
   demoPostListOutOfSyncWithSeed,
-  getGenericSeedPosts,
   getSeedPosts,
   isDemoOnlyPostList,
   SEED_SCRATCHPAD
@@ -10,15 +9,10 @@ import {
 import {
   connect as driveConnect,
   disconnect as driveDisconnect,
-  getClientId as driveGetClientId,
-  getClientSecret as driveGetClientSecret,
   getStatus as driveGetStatus,
   initDriveStore,
   readPosts as driveReadPosts,
   readScratchpad as driveReadScratchpad,
-  replacePosts as driveReplacePosts,
-  setClientId as driveSetClientId,
-  setClientSecret as driveSetClientSecret,
   syncNow as driveSyncNow,
   writePosts as driveWritePosts,
   writeScratchpad as driveWriteScratchpad,
@@ -112,18 +106,6 @@ async function writeStore(data: { posts: unknown[] }): Promise<void> {
   await driveWritePosts((data.posts ?? []) as RawPost[])
 }
 
-async function replaceStoreWithDemoSeed(): Promise<{ posts: unknown[] }> {
-  const posts = getSeedPosts()
-  await driveReplacePosts(posts as RawPost[])
-  return { posts }
-}
-
-async function replaceStoreWithGenericDemoSeed(): Promise<{ posts: unknown[] }> {
-  const posts = getGenericSeedPosts()
-  await driveReplacePosts(posts as RawPost[])
-  return { posts }
-}
-
 async function readScratchpad(): Promise<string> {
   const text = await driveReadScratchpad()
   if (text) return text
@@ -211,8 +193,6 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('store:read', () => readStore())
   ipcMain.handle('store:write', (_, payload: { posts: unknown[] }) => writeStore(payload))
-  ipcMain.handle('store:replaceDemo', () => replaceStoreWithDemoSeed())
-  ipcMain.handle('store:replaceDemoGeneric', () => replaceStoreWithGenericDemoSeed())
   ipcMain.handle('clipboard:write', (_, text: string) => {
     clipboard.writeText(text ?? '')
     return true
@@ -241,12 +221,6 @@ app.whenReady().then(async () => {
   ipcMain.handle('drive:connect', () => driveConnect())
   ipcMain.handle('drive:disconnect', () => driveDisconnect())
   ipcMain.handle('drive:syncNow', () => driveSyncNow())
-  ipcMain.handle('drive:getClientId', () => driveGetClientId())
-  ipcMain.handle('drive:setClientId', (_, clientId: string) => driveSetClientId(clientId ?? ''))
-  ipcMain.handle('drive:getClientSecret', () => driveGetClientSecret())
-  ipcMain.handle('drive:setClientSecret', (_, clientSecret: string) =>
-    driveSetClientSecret(clientSecret ?? '')
-  )
   ipcMain.handle('workspace:readHydration', () => driveReadWorkspaceHydration())
   ipcMain.handle('workspace:reportSnapshot', (_, snapshot: Record<string, unknown>) =>
     driveReportWorkspaceSnapshot(snapshot ?? {})

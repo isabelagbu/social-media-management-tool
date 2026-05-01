@@ -146,6 +146,17 @@ Designed & developed by Isabel Agbu.
 npm install
 ```
 
+### Configure Google Drive credentials (dev)
+
+```bash
+cp .env.example .env.local
+```
+
+Then set values in `.env.local`:
+
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+
 ### Run in development
 
 ```bash

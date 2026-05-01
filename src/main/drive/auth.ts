@@ -4,6 +4,10 @@ import { createServer, type Server } from 'http'
 import { existsSync } from 'fs'
 import { mkdir, readFile, unlink, writeFile } from 'fs/promises'
 import { join } from 'path'
+import { config as loadDotenv } from 'dotenv'
+
+loadDotenv({ path: join(process.cwd(), '.env') })
+loadDotenv({ path: join(process.cwd(), '.env.local'), override: true })
 
 const TOKEN_FILE = 'drive-tokens.bin'
 const CONFIG_FILE = 'drive-config.json'
@@ -144,7 +148,7 @@ async function fetchUserEmail(accessToken: string): Promise<string | null> {
 export async function startOAuthFlow(): Promise<TokenSet> {
   const { clientId, clientSecret } = await readDriveConfig()
   if (!clientId) {
-    throw new Error('Google Client ID is not configured. Add it under Settings → Google Drive sync.')
+    throw new Error('Google Drive is not configured for this build.')
   }
 
   const { verifier, challenge } = generatePkce()
