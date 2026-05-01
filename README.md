@@ -74,6 +74,24 @@ Designed & developed by Isabel Agbu.
 - **Reminders** — enable/disable post-due notifications + test button
 - **Dashboard** — toggle cover photo banner on or off
 - **Accounts** — add, edit, or remove accounts per platform
+- **Google Drive Sync** — connect/disconnect, manual sync, sync status and pending-change visibility
+
+### Cloud Sync
+- Google OAuth connection from Settings
+- Auto-sync for posts (`content-store.json`) and scratchpad (`scratchpad.json`)
+- Workspace mirror (`workspace.json`) syncs key local preferences across devices:
+  - accounts and account-preview toggle
+  - onboarding completion
+  - notepad tabs, active tab, demo version, and sticky notes
+  - dashboard greeting and banner image + banner enabled toggle
+  - reminders, hints, enabled form platforms, content section memory
+  - theme, accent, and sound preference
+- Conflict handling:
+  - posts merge by post `id` + latest `updatedAt`
+  - workspace merges per key using latest timestamp
+- Notes:
+  - OAuth tokens remain device-local (each device connects once)
+  - synced data is cached locally for offline use and later upload
 
 ### Sound Effects
 - Subtle pop on every button click and navigation
@@ -110,7 +128,8 @@ Designed & developed by Isabel Agbu.
 - **react-image-crop** — banner photo cropping
 - **Web Audio / HTML Audio** — sound effects
 - **Electron `Notification`** — native macOS reminders
-- **localStorage** — preferences, notepad tabs, sticky notes, onboarding state
+- **Google Drive API** — cloud file sync for posts, scratchpad, and workspace preferences
+- **localStorage** — renderer cache and UI state, mirrored into workspace sync keys
 - **Electron `<webview>`** — embedded social platform browsers
 
 ---
@@ -192,4 +211,10 @@ src/
 
 ## Data Storage
 
-Posts are persisted to a JSON file in Electron's `userData` directory (`content-store.json`). Preferences — theme, accent, sound, sidebar state, accounts, notepad tabs, sticky notes, onboarding status, hints, reminders, banner image — are stored in `localStorage`.
+Runtime data is stored in Electron's `userData` directory and mirrored to Google Drive when connected:
+
+- `content-store.json` — posts
+- `scratchpad.json` — notes scratchpad
+- `workspace.json` — synced preference/localStorage mirror for cross-device continuity
+
+Renderer state still uses `localStorage` for immediate reads, then hydrates/applies updates from synced workspace data.
